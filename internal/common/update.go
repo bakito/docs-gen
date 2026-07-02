@@ -9,6 +9,7 @@ import (
 
 const (
 	TagDocs = "docs"
+	TagCLI  = "docs-cli"
 	TagEnv  = "env"
 	TagYAML = "yaml"
 )

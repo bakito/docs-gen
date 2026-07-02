@@ -18,29 +18,43 @@ func UpdateDocumentation[T any](start, end string) common.UpdateDocsFunc {
 			StartMarker: start,
 			EndMarker:   end,
 		}
-		return updateDocumentationImpl[T](cfg, fileContent)
+		return updateDocumentationImpl[T](cfg, fileContent, nil)
 	}
 }
 
-func updateDocumentationImpl[T any](cfg common.Config, fileContent string) string {
+// UpdateDocumentationWithCustomizer Updates the yaml documentation of the given type.
+func UpdateDocumentationWithCustomizer[T any](start, end string, pc PrefixCustomizer) common.UpdateDocsFunc {
+	return func(fileContent string) string {
+		slog.Info("Generating yaml documentation")
+		cfg := common.Config{
+			StartMarker: start,
+			EndMarker:   end,
+		}
+		return updateDocumentationImpl[T](cfg, fileContent, pc)
+	}
+}
+
+func updateDocumentationImpl[T any](cfg common.Config, fileContent string, pc PrefixCustomizer) string {
 	var buf strings.Builder
 	buf.WriteString("```yaml\n")
-	writeYAMLDocumentation(&buf, reflect.TypeFor[T](), "", "")
+	writeYAMLDocumentation(&buf, Prefix{
+		FieldType: reflect.TypeFor[T](), First: "", Other: "",
+	}, pc)
 	buf.WriteString("```\n")
 
 	return common.UpdateDocumentationSection(cfg, fileContent, buf.String())
 }
 
-func writeYAMLDocumentation(w io.Writer, t reflect.Type, firstPrefix, otherPrefix string) {
-	if t.Kind() == reflect.Pointer {
-		t = t.Elem()
+func writeYAMLDocumentation(w io.Writer, prefix Prefix, pc PrefixCustomizer) {
+	if prefix.FieldType.Kind() == reflect.Pointer {
+		prefix.FieldType = prefix.FieldType.Elem()
 	}
-	if t.Kind() != reflect.Struct {
+	if prefix.FieldType.Kind() != reflect.Struct {
 		return
 	}
 
 	var i int
-	for _, field := range reflect.VisibleFields(t) {
+	for _, field := range reflect.VisibleFields(prefix.FieldType) {
 		if field.PkgPath != "" {
 			continue
 		}
@@ -56,20 +70,20 @@ func writeYAMLDocumentation(w io.Writer, t reflect.Type, firstPrefix, otherPrefi
 			ft = ft.Elem()
 		}
 
-		pf := otherPrefix
+		pf := prefix.Other
 		if i == 0 {
-			pf = firstPrefix
+			pf = prefix.First
 		}
 
-		newFirstPrefix := pf + "  "
-		newOtherPrefix := otherPrefix + "  "
-
-		if yamlTag == "replicas" && ft.Kind() == reflect.Slice {
-			ft = ft.Elem()
-			newFirstPrefix += "- "
-			newOtherPrefix += "  "
+		fieldPrefix := Prefix{
+			FieldType: ft,
+			First:     pf + "  ",
+			Other:     prefix.Other + "  ",
 		}
 
+		if pc != nil {
+			pc(yamlTag, &fieldPrefix)
+		}
 		if yamlTag != "" {
 			docs := field.Tag.Get(common.TagDocs)
 			fieldType := fieldTypeString(ft)
@@ -79,10 +93,19 @@ func writeYAMLDocumentation(w io.Writer, t reflect.Type, firstPrefix, otherPrefi
 		}
 
 		if ft.Kind() == reflect.Struct && ft.Name() != "Time" {
-			writeYAMLDocumentation(w, ft, newFirstPrefix, newOtherPrefix)
+			writeYAMLDocumentation(w, fieldPrefix, pc)
 		}
 	}
 }
+
+type Prefix struct {
+	FieldType reflect.Type
+	First     string
+	Other     string
+}
+
+// PrefixCustomizer is a function that can be used to customize the prefix of a field.
+type PrefixCustomizer = func(yamlTag string, prefix *Prefix)
 
 func fieldTypeString(ft reflect.Type) string {
 	if ft.Kind() == reflect.Map {
