@@ -13,10 +13,19 @@ const (
 	TagYAML = "yaml"
 )
 
+type UpdateDocsFunc func(fileName string) string
+
 type Config struct {
 	StartMarker string
 	EndMarker   string
-	FileName    string
+}
+
+// NewConfig creates a new Config.
+func NewConfig(startMarker, endMarker string) Config {
+	return Config{
+		StartMarker: startMarker,
+		EndMarker:   endMarker,
+	}
 }
 
 // UpdateDocumentationSection updates the content between startMarker and endMarker in fileContent with newContent.
@@ -25,7 +34,7 @@ func UpdateDocumentationSection(cfg Config, fileContent, newContent string) stri
 	endIdx := strings.Index(fileContent, cfg.EndMarker)
 
 	if startIdx == -1 || endIdx == -1 {
-		slog.Error(fmt.Sprintf("Could not find markers %s and %s in %s", cfg.StartMarker, cfg.EndMarker, cfg.FileName))
+		slog.Error(fmt.Sprintf("Could not find markers %s and %s", cfg.StartMarker, cfg.EndMarker))
 		os.Exit(1)
 	}
 

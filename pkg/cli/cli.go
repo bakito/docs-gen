@@ -8,34 +8,50 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/bakito/docs-gen/pkg/common"
+	"github.com/bakito/docs-gen/internal/common"
 )
 
-type Config struct {
+// UpdateDocumentation Updates the documentation of the environment variables of the given type.
+func UpdateDocumentation(start, end, dir, command string, args ...string) common.UpdateDocsFunc {
+	return func(fileContent string) string {
+		ul := slog.With("command", command, "args", args)
+		ul.Info("Generating cli documentation")
+		cfg := config{
+			Config:  common.NewConfig(start, end),
+			Command: command,
+			Dir:     dir,
+			Args:    args,
+		}
+
+		return updateDocumentationImpl(ul, cfg, fileContent)
+	}
+}
+
+type config struct {
 	common.Config
 	Command string
 	Args    []string
 	Dir     string
 }
 
-func UpdateDocumentation(cfg Config, fileContent string) string {
+func updateDocumentationImpl(ul *slog.Logger, cfg config, fileContent string) string {
 	var buf strings.Builder
 	buf.WriteString("```\n")
-	writeCliDocumentation(cfg, &buf)
+	writeCliDocumentation(ul, cfg, &buf)
 	buf.WriteString("```\n")
 	return common.UpdateDocumentationSection(cfg.Config, fileContent, buf.String())
 }
 
-func writeCliDocumentation(cfg Config, w io.Writer) {
+func writeCliDocumentation(ul *slog.Logger, cfg config, w io.Writer) {
 	cmd := exec.CommandContext(context.Background(), cfg.Command, cfg.Args...)
 	cmd.Dir = cfg.Dir
 	output, err := cmd.Output()
 	if err != nil {
-		slog.With("executable", cfg.Command, "args", cfg.Args, "error", err).Error("Error executing cli")
+		ul.Error("Error executing cli", "error", err)
 		os.Exit(1)
 	}
 	if _, err := w.Write(output); err != nil {
-		slog.Error("Error writing CLI documentation", "error", err)
+		ul.Error("Error writing CLI documentation", "error", err)
 		os.Exit(1)
 	}
 }

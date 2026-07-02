@@ -3,13 +3,26 @@ package env
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"reflect"
 	"strings"
 
-	"github.com/bakito/docs-gen/pkg/common"
+	"github.com/bakito/docs-gen/internal/common"
 )
 
-func UpdateDocumentation[T any](cfg common.Config, fileContent string) string {
+// UpdateDocumentation Updates the documentation of the environment variables of the given type.
+func UpdateDocumentation[T any](start, end string) common.UpdateDocsFunc {
+	return func(fileContent string) string {
+		slog.Info("Generating environment variables documentation")
+		cfg := common.Config{
+			StartMarker: start,
+			EndMarker:   end,
+		}
+		return updateDocumentationImpl[T](cfg, fileContent)
+	}
+}
+
+func updateDocumentationImpl[T any](cfg common.Config, fileContent string) string {
 	var buf strings.Builder
 	buf.WriteString("| Name | Type | Description |\n")
 	buf.WriteString("| :--- | ---- |:----------- |\n")
