@@ -20,8 +20,8 @@ const (
 
 func main() {
 	docs.UpdateDocumentation("README.md",
-env.UpdateDocumentation[types.Config](envStartMarker, envEndMarker),
-cli.UpdateDocumentation(cliStartMarker, cliEndMarker, ".", "go", "run", ".", "--help"),
+		env.UpdateDocumentation[types.Config](envStartMarker, envEndMarker),
+		cli.UpdateDocumentation(cliStartMarker, cliEndMarker, ".", "go", "run", ".", "--help"),
 		yaml.UpdateDocumentation[Config](yamlStartMarker, yamlEndMarker),
 	)
 }
