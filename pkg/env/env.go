@@ -18,20 +18,32 @@ func UpdateDocumentation[T any](start, end string) common.UpdateDocsFunc {
 			StartMarker: start,
 			EndMarker:   end,
 		}
-		return updateDocumentationImpl[T](cfg, fileContent)
+		return updateDocumentationImpl[T](cfg, fileContent, nil)
 	}
 }
 
-func updateDocumentationImpl[T any](cfg common.Config, fileContent string) string {
+// UpdateDocumentationWithCustomizer Updates the documentation of the environment variables of the given type.
+func UpdateDocumentationWithCustomizer[T any](start, end string, etc TagCustomizer) common.UpdateDocsFunc {
+	return func(fileContent string) string {
+		slog.Info("Generating environment variables documentation")
+		cfg := common.Config{
+			StartMarker: start,
+			EndMarker:   end,
+		}
+		return updateDocumentationImpl[T](cfg, fileContent, etc)
+	}
+}
+
+func updateDocumentationImpl[T any](cfg common.Config, fileContent string, etc TagCustomizer) string {
 	var buf strings.Builder
 	buf.WriteString("| Name | Type | Description |\n")
 	buf.WriteString("| :--- | ---- |:----------- |\n")
-	writeEnvDocumentation(&buf, reflect.TypeFor[T](), "")
+	writeEnvDocumentation(&buf, reflect.TypeFor[T](), "", etc)
 
 	return common.UpdateDocumentationSection(cfg, fileContent, buf.String())
 }
 
-func writeEnvDocumentation(w io.Writer, t reflect.Type, prefix string) {
+func writeEnvDocumentation(w io.Writer, t reflect.Type, prefix string, etc TagCustomizer) {
 	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
@@ -45,13 +57,8 @@ func writeEnvDocumentation(w io.Writer, t reflect.Type, prefix string) {
 		}
 
 		envTag := field.Tag.Get(common.TagEnv)
-		if envTag == "" {
-			switch field.Name {
-			case "Origin":
-				envTag = "ORIGIN"
-			case "Replica":
-				envTag = "REPLICA#"
-			}
+		if etc != nil {
+			envTag = etc(envTag, field)
 		}
 
 		combinedTag := buildCombinedTag(prefix, envTag)
@@ -62,7 +69,7 @@ func writeEnvDocumentation(w io.Writer, t reflect.Type, prefix string) {
 		}
 
 		if ft.Kind() == reflect.Struct && ft.Name() != "Time" {
-			writeEnvDocumentation(w, ft, strings.TrimSuffix(combinedTag, "_"))
+			writeEnvDocumentation(w, ft, strings.TrimSuffix(combinedTag, "_"), etc)
 		} else if envTag != "" {
 			envVar := strings.Trim(combinedTag, "_") + " (" + ft.Kind().String() + ")"
 			docs := field.Tag.Get(common.TagDocs)
@@ -70,6 +77,8 @@ func writeEnvDocumentation(w io.Writer, t reflect.Type, prefix string) {
 		}
 	}
 }
+
+type TagCustomizer = func(envTag string, field reflect.StructField) string
 
 func buildCombinedTag(prefix, envTag string) string {
 	if prefix != "" && envTag != "" {
