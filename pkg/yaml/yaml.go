@@ -88,7 +88,7 @@ func writeYAMLDocumentation(w io.Writer, prefix Prefix, pc PrefixCustomizer) {
 
 			docs := field.Tag.Get(common.TagDocs)
 			fieldType := fieldTypeString(newPrefix.FieldType)
-			fmt.Fprintf(w, "%s# %s (%s)\n", pf, docs, fieldType)
+			fmt.Fprintf(w, "%s# %s (%s)\n", strings.ReplaceAll(pf, prefix.First, prefix.Other), docs, fieldType)
 			fmt.Fprintf(w, "%s%s:\n", pf, yamlTag)
 			i++
 		}
