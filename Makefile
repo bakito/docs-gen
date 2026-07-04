@@ -13,3 +13,9 @@ tidy:
 test:
 	go test -cover -coverprofile coverage.out ./...
 	go tool cover -func=coverage.out
+
+test-update:
+	go test ./pkg/cli/ -update-golden-files
+	go test ./pkg/cobra/ -update-golden-files
+	go test ./pkg/env/ -update-golden-files
+	go test ./pkg/yaml/ -update-golden-files
