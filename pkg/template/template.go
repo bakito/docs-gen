@@ -1,4 +1,4 @@
-package mapdata
+package template
 
 import (
 	"log/slog"
@@ -11,7 +11,7 @@ import (
 )
 
 // UpdateDocumentation Updates the documentation by the provided map.
-func UpdateDocumentation[T any](data map[string]T, start, end, tpl, tplPrefix, tplSuffix string) common.UpdateDocsFunc {
+func UpdateDocumentation[T any](data map[string]T, start, end, tpl string, opts ...Option) common.UpdateDocsFunc {
 	t1 := template.New("tpl")
 	t1, err := t1.Parse(tpl)
 	if err != nil {
@@ -26,9 +26,11 @@ func UpdateDocumentation[T any](data map[string]T, start, end, tpl, tplPrefix, t
 				StartMarker: start,
 				EndMarker:   end,
 			},
-			prefix:   tplPrefix,
-			suffix:   tplSuffix,
 			template: t1,
+		}
+
+		for _, opt := range opts {
+			opt(&cfg)
 		}
 
 		return updateDocumentationImpl(cfg, fileContent, data)
@@ -46,7 +48,6 @@ func updateDocumentationImpl[T any](cfg config, fileContent string, data map[str
 	slices.Sort(keys)
 
 	for _, key := range keys {
-
 		err := cfg.template.Execute(&buf, map[string]any{"Key": key, "Value": data[key]})
 		if err != nil {
 			slog.Error("Error rendering Template", "error", err)
@@ -57,11 +58,4 @@ func updateDocumentationImpl[T any](cfg config, fileContent string, data map[str
 		buf.WriteString(cfg.suffix)
 	}
 	return common.UpdateDocumentationSection(cfg.Config, fileContent, buf.String())
-}
-
-type config struct {
-	common.Config
-	prefix   string
-	suffix   string
-	template *template.Template
 }

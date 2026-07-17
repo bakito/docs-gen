@@ -1,4 +1,4 @@
-package mapdata
+package template
 
 import (
 	"os"
@@ -21,11 +21,11 @@ func Test_UpdateDocumentation_GoldenFile(t *testing.T) {
 		tplSuffix    string
 	}{
 		{
-			name:         "mapdata golden file",
+			name:         "template golden file",
 			inputFile:    "README.md",
 			expectedFile: "README.golden.md",
-			startMarker:  "<!-- mapdata-doc-start -->",
-			endMarker:    "<!-- mapdata-doc-end -->",
+			startMarker:  "<!-- template-doc-start -->",
+			endMarker:    "<!-- template-doc-end -->",
 
 			data:      map[string]string{"A": "a", "B": "b", "C": "c"},
 			tpl:       "| {{ .Key }} | {{ .Value }} |\n",
@@ -35,7 +35,7 @@ func Test_UpdateDocumentation_GoldenFile(t *testing.T) {
 
 	for _, tt := range docTests {
 		t.Run(tt.name, func(t *testing.T) {
-			input, err := os.ReadFile(filepath.Join("..", "..", "testdata", "mapdata", tt.inputFile))
+			input, err := os.ReadFile(filepath.Join("..", "..", "testdata", "template", tt.inputFile))
 			if err != nil {
 				t.Fatalf("read input golden file: %v", err)
 			}
@@ -45,11 +45,11 @@ func Test_UpdateDocumentation_GoldenFile(t *testing.T) {
 				tt.startMarker,
 				tt.endMarker,
 				tt.tpl,
-				tt.tplPrefix,
-				tt.tplSuffix,
+				WithPrefix(tt.tplPrefix),
+				WithSuffix(tt.tplSuffix),
 			)(string(input))
 
-			expectedPath := filepath.Join("..", "..", "testdata", "mapdata", tt.expectedFile)
+			expectedPath := filepath.Join("..", "..", "testdata", "template", tt.expectedFile)
 
 			if *tests.UpdateGoldenFiles {
 				if err := os.WriteFile(expectedPath, []byte(got), 0o644); err != nil {
