@@ -19,3 +19,4 @@ test-update:
 	go test ./pkg/cobra/ -update-golden-files
 	go test ./pkg/env/ -update-golden-files
 	go test ./pkg/yaml/ -update-golden-files
+	go test ./pkg/mapdata/ -update-golden-files

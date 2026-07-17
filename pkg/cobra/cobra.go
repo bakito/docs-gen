@@ -13,7 +13,7 @@ import (
 // UpdateDocumentation Updates the documentation of the environment variables of the given type.
 func UpdateDocumentation[T any](start, end string) common.UpdateDocsFunc {
 	return func(fileContent string) string {
-		slog.Info("Generating cobra reasons")
+		slog.Info("Generating cobra doc")
 		cfg := common.Config{
 			StartMarker: start,
 			EndMarker:   end,
