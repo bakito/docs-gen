@@ -20,7 +20,7 @@ func UpdateDocumentation[T any](data map[string]T, start, end, tpl string, opts 
 	}
 
 	return func(fileContent string) string {
-		slog.Info("Generating map docs")
+		slog.Info("Generating template docs")
 		cfg := config{
 			Config: common.Config{
 				StartMarker: start,
