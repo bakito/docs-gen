@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"reflect"
 	"strings"
 )
 
@@ -13,6 +14,24 @@ const (
 	TagEnv  = "env"
 	TagYAML = "yaml"
 )
+
+// IsInline checks if a struct field is embedded or marked with a yaml inline tag.
+func IsInline(field reflect.StructField) bool {
+	yamlTag := field.Tag.Get(TagYAML)
+	if yamlTag == "-" {
+		return false
+	}
+	parts := strings.Split(yamlTag, ",")
+	for _, p := range parts {
+		if strings.TrimSpace(p) == "inline" {
+			return true
+		}
+	}
+	if field.Anonymous && parts[0] == "" {
+		return true
+	}
+	return false
+}
 
 type UpdateDocsFunc func(fileName string) string
 

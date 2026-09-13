@@ -46,6 +46,11 @@ func updateDocumentationImpl[T any](cfg common.Config, fileContent string, pc Pr
 }
 
 func writeYAMLDocumentation(w io.Writer, prefix Prefix, pc PrefixCustomizer) {
+	var counter int
+	writeYAMLDocumentationHelper(w, prefix, pc, &counter)
+}
+
+func writeYAMLDocumentationHelper(w io.Writer, prefix Prefix, pc PrefixCustomizer, counter *int) {
 	if prefix.FieldType.Kind() == reflect.Pointer {
 		prefix.FieldType = prefix.FieldType.Elem()
 	}
@@ -53,9 +58,9 @@ func writeYAMLDocumentation(w io.Writer, prefix Prefix, pc PrefixCustomizer) {
 		return
 	}
 
-	var i int
-	for _, field := range reflect.VisibleFields(prefix.FieldType) {
-		if field.PkgPath != "" {
+	for i := range prefix.FieldType.NumField() {
+		field := prefix.FieldType.Field(i)
+		if field.PkgPath != "" && !field.Anonymous {
 			continue
 		}
 
@@ -63,38 +68,52 @@ func writeYAMLDocumentation(w io.Writer, prefix Prefix, pc PrefixCustomizer) {
 		if yamlTag == "-" {
 			continue
 		}
-		yamlTag = strings.TrimSuffix(yamlTag, ",omitempty")
 
-		newPrefix := Prefix{
-			FieldType: field.Type,
+		ft := field.Type
+		if ft.Kind() == reflect.Pointer {
+			ft = ft.Elem()
 		}
 
-		if newPrefix.FieldType.Kind() == reflect.Pointer {
-			newPrefix.FieldType = newPrefix.FieldType.Elem()
+		if common.IsInline(field) && ft.Kind() == reflect.Struct && ft.Name() != "Time" {
+			inlinePrefix := Prefix{
+				FieldType: ft,
+				First:     prefix.First,
+				Other:     prefix.Other,
+			}
+			writeYAMLDocumentationHelper(w, inlinePrefix, pc, counter)
+			continue
+		}
+
+		parts := strings.Split(yamlTag, ",")
+		tagFieldName := parts[0]
+
+		newPrefix := Prefix{
+			FieldType: ft,
 		}
 
 		pf := prefix.Other
-		if i == 0 {
+		if *counter == 0 {
 			pf = prefix.First
 		}
 
 		newPrefix.First = pf + "  "
 		newPrefix.Other = prefix.Other + "  "
 
-		if yamlTag != "" {
+		if tagFieldName != "" {
 			if pc != nil {
-				pc(yamlTag, &newPrefix)
+				pc(tagFieldName, &newPrefix)
 			}
 
 			docs := field.Tag.Get(common.TagDocs)
 			fieldType := fieldTypeString(newPrefix.FieldType)
 			fmt.Fprintf(w, "%s# %s (%s)\n", strings.ReplaceAll(pf, prefix.First, prefix.Other), docs, fieldType)
-			fmt.Fprintf(w, "%s%s:\n", pf, yamlTag)
-			i++
+			fmt.Fprintf(w, "%s%s:\n", pf, tagFieldName)
+			(*counter)++
 		}
 
 		if newPrefix.FieldType.Kind() == reflect.Struct && newPrefix.FieldType.Name() != "Time" {
-			writeYAMLDocumentation(w, newPrefix, pc)
+			var nestedCounter int
+			writeYAMLDocumentationHelper(w, newPrefix, pc, &nestedCounter)
 		}
 	}
 }

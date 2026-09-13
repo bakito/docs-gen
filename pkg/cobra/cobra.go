@@ -39,28 +39,32 @@ func writeCobraMapping(w io.Writer, t reflect.Type) {
 		return
 	}
 
-	for _, field := range reflect.VisibleFields(t) {
-		if field.PkgPath != "" {
+	for i := range t.NumField() {
+		field := t.Field(i)
+		if field.PkgPath != "" && !field.Anonymous {
 			continue
 		}
 
-		docsTag := field.Tag.Get(common.TagDocs)
-		if docsTag == "" {
-			continue
-		}
 		ft := field.Type
 		if ft.Kind() == reflect.Pointer {
 			ft = ft.Elem()
 		}
-		if ft.Kind() == reflect.Struct && ft.Name() != "Time" {
+
+		if common.IsInline(field) && ft.Kind() == reflect.Struct && ft.Name() != "Time" {
 			writeCobraMapping(w, ft)
-		}
-		cliTag := field.Tag.Get(common.TagCLI)
-		if cliTag == "" {
 			continue
 		}
 
-		fmt.Fprintf(w, "	`%s`: `%s`,\n", cliTag, docsTag)
+		docsTag := field.Tag.Get(common.TagDocs)
+		if docsTag != "" {
+			if ft.Kind() == reflect.Struct && ft.Name() != "Time" {
+				writeCobraMapping(w, ft)
+			}
+			cliTag := field.Tag.Get(common.TagCLI)
+			if cliTag != "" {
+				fmt.Fprintf(w, "	`%s`: `%s`,\n", cliTag, docsTag)
+			}
+		}
 	}
 }
 

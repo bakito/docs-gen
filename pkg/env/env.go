@@ -35,24 +35,79 @@ func UpdateDocumentationWithCustomizer[T any](start, end string, etc TagCustomiz
 }
 
 func updateDocumentationImpl[T any](cfg common.Config, fileContent string, etc TagCustomizer) string {
+	entries := collectEnvEntries(reflect.TypeFor[T](), "", etc)
+
+	w0, w1, w2 := len("Name"), len("Type"), len("Description")
+	for _, e := range entries {
+		if len(e.name) > w0 {
+			w0 = len(e.name)
+		}
+		if len(e.typ) > w1 {
+			w1 = len(e.typ)
+		}
+		if len(e.docs) > w2 {
+			w2 = len(e.docs)
+		}
+	}
+
 	var buf strings.Builder
-	buf.WriteString("| Name | Type | Description |\n")
-	buf.WriteString("| :--- | ---- |:----------- |\n")
-	writeEnvDocumentation(&buf, reflect.TypeFor[T](), "", etc)
+	fmt.Fprintf(&buf, "| %-*s | %-*s | %-*s |\n", w0, "Name", w1, "Type", w2, "Description")
+	fmt.Fprintf(
+		&buf,
+		"| :%-*s | %-*s | :%-*s |\n",
+		w0-1,
+		strings.Repeat("-", w0-1),
+		w1,
+		strings.Repeat("-", w1),
+		w2-1,
+		strings.Repeat("-", w2-1),
+	)
+
+	for _, e := range entries {
+		fmt.Fprintf(&buf, "| %-*s | %-*s | %-*s |\n", w0, e.name, w1, e.typ, w2, e.docs)
+	}
 
 	return common.UpdateDocumentationSection(cfg, fileContent, buf.String())
 }
 
+type envEntry struct {
+	name string
+	typ  string
+	docs string
+}
+
 func writeEnvDocumentation(w io.Writer, t reflect.Type, prefix string, etc TagCustomizer) {
+	entries := collectEnvEntries(t, prefix, etc)
+	w0, w1, w2 := 0, 0, 0
+	for _, e := range entries {
+		if len(e.name) > w0 {
+			w0 = len(e.name)
+		}
+		if len(e.typ) > w1 {
+			w1 = len(e.typ)
+		}
+		if len(e.docs) > w2 {
+			w2 = len(e.docs)
+		}
+	}
+
+	for _, e := range entries {
+		fmt.Fprintf(w, "| %-*s | %-*s | %-*s |\n", w0, e.name, w1, e.typ, w2, e.docs)
+	}
+}
+
+func collectEnvEntries(t reflect.Type, prefix string, etc TagCustomizer) []envEntry {
 	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	if t.Kind() != reflect.Struct {
-		return
+		return nil
 	}
 
-	for _, field := range reflect.VisibleFields(t) {
-		if field.PkgPath != "" {
+	var entries []envEntry
+	for i := range t.NumField() {
+		field := t.Field(i)
+		if field.PkgPath != "" && !field.Anonymous {
 			continue
 		}
 
@@ -61,21 +116,31 @@ func writeEnvDocumentation(w io.Writer, t reflect.Type, prefix string, etc TagCu
 			envTag = etc(envTag, field)
 		}
 
-		combinedTag := buildCombinedTag(prefix, envTag)
-
 		ft := field.Type
 		if ft.Kind() == reflect.Pointer {
 			ft = ft.Elem()
 		}
 
+		if common.IsInline(field) && ft.Kind() == reflect.Struct && ft.Name() != "Time" {
+			entries = append(entries, collectEnvEntries(ft, prefix, etc)...)
+			continue
+		}
+
+		combinedTag := buildCombinedTag(prefix, envTag)
+
 		if ft.Kind() == reflect.Struct && ft.Name() != "Time" {
-			writeEnvDocumentation(w, ft, strings.TrimSuffix(combinedTag, "_"), etc)
+			entries = append(entries, collectEnvEntries(ft, strings.TrimSuffix(combinedTag, "_"), etc)...)
 		} else if envTag != "" {
 			envVar := strings.Trim(combinedTag, "_") + " (" + ft.Kind().String() + ")"
 			docs := field.Tag.Get(common.TagDocs)
-			fmt.Fprintf(w, "| %s | %s | %s |\n", envVar, ft.Kind().String(), docs)
+			entries = append(entries, envEntry{
+				name: envVar,
+				typ:  ft.Kind().String(),
+				docs: docs,
+			})
 		}
 	}
+	return entries
 }
 
 type TagCustomizer = func(envTag string, field reflect.StructField) string
